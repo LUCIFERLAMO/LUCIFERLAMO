@@ -1,0 +1,43 @@
+name: Target range
+
+on:
+  schedule:
+    - cron: "17 */12 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["scripts/**", ".github/workflows/range.yml"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: range
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build the animated range
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: python scripts/build_range.py --user "${{ github.repository_owner }}" --out /tmp/range.svg
+
+      - name: Publish to the output branch
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan output
+          git rm -rf --quiet .
+          cp /tmp/range.svg range.svg
+          git add range.svg
+          git commit --quiet -m "range: $(date -u +%F)"
+          git push --force origin output
